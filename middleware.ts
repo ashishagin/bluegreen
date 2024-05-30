@@ -28,7 +28,8 @@ export async function middleware(req: NextRequest) {
   }
   // Skip if the middleware has already run.
   if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    const response = getDeploymentWithCookieBasedOnEnvVar();
+    return runDownstreamApplicationMiddlewareLogic(req, response);
   }
   // We skip blue-green when accesing from deployment urls
   if (req.nextUrl.hostname === process.env.VERCEL_URL) {
@@ -70,7 +71,8 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    const response = getDeploymentWithCookieBasedOnEnvVar();
+    return runDownstreamApplicationMiddlewareLogic(req, response);
   }
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
@@ -117,5 +119,13 @@ function getDeploymentWithCookieBasedOnEnvVar() {
     httpOnly: true,
     maxAge: 60 * 60 * 24, // 24 hours
   });
+  return response;
+}
+
+function runDownstreamApplicationMiddlewareLogic(req: NextRequest, res: NextResponse) {
+  const country = req.geo?.country || '';
+  console.log(`GEO_COUNTRY:${country}`);
+  const response = NextResponse.next();
+  response.cookies.set("geo_country", country);
   return response;
 }
