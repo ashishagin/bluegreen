@@ -81,6 +81,9 @@ export async function middleware(req: NextRequest) {
     "x-vercel-protection-bypass",
     process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "unknown"
   );
+
+  forwardGeoCountry(req, headers);
+
   const url = new URL(req.url);
   url.hostname = selectedDeploymentDomain;
   return fetch(url, {
@@ -88,6 +91,15 @@ export async function middleware(req: NextRequest) {
     redirect: "manual",
   });
 }
+
+function forwardGeoCountry(req: NextRequest, headers: Headers){
+  headers.set("x-bg-ip-country", req.geo?.country || '');
+}
+
+function getForwardedGeoCountry(req: NextRequest){
+  return req.headers.get("x-bg-ip-country");
+}
+
 
 // Selects the deployment domain based on the blue-green configuration.
 function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
@@ -126,6 +138,13 @@ function runDownstreamApplicationMiddlewareLogic(req: NextRequest, res: NextResp
   const country = req.geo?.country || '';
   console.log(`GEO_COUNTRY:${country}`);
   const response = NextResponse.next();
-  response.cookies.set("geo_country", country);
+  const forwardedCountry = getForwardedGeoCountry(req);
+  if(!forwardedCountry){
+    response.cookies.set("geo_country", country);
+  } else {
+    console.log("country is set from forwarded headers");
+    response.cookies.set("geo_country", country);
+  }
+    
   return response;
 }
