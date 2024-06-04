@@ -142,8 +142,8 @@ function runDownstreamApplicationMiddlewareLogic(req: NextRequest, res: NextResp
   if(!forwardedCountry){
     response.cookies.set("geo_country", country);
   } else {
-    console.log("country is set from forwarded headers");
-    response.cookies.set("geo_country", country);
+    console.log("country is set from forwarded headers = " + forwardedCountry);
+    response.cookies.set("geo_country", forwardedCountry);
   }
     
   return response;
