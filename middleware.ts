@@ -28,7 +28,8 @@ export async function middleware(req: NextRequest) {
   }
   // Skip if the middleware has already run.
   if (req.headers.get("x-deployment-override")) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    const response = getDeploymentWithCookieBasedOnEnvVar();
+    return runDownstreamApplicationMiddlewareLogic(req, response);
   }
   // We skip blue-green when accesing from deployment urls
   if (req.nextUrl.hostname === process.env.VERCEL_URL) {
@@ -70,7 +71,8 @@ export async function middleware(req: NextRequest) {
   }
   // The selected deployment domain is the same as the one serving the request.
   if (servingDeploymentDomain === selectedDeploymentDomain) {
-    return getDeploymentWithCookieBasedOnEnvVar();
+    const response = getDeploymentWithCookieBasedOnEnvVar();
+    return runDownstreamApplicationMiddlewareLogic(req, response);
   }
   // Fetch the HTML document from the selected deployment domain and return it to the user.
   const headers = new Headers(req.headers);
@@ -79,6 +81,9 @@ export async function middleware(req: NextRequest) {
     "x-vercel-protection-bypass",
     process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "unknown"
   );
+
+  forwardGeoCountry(req, headers);
+
   const url = new URL(req.url);
   url.hostname = selectedDeploymentDomain;
   return fetch(url, {
@@ -86,6 +91,15 @@ export async function middleware(req: NextRequest) {
     redirect: "manual",
   });
 }
+
+function forwardGeoCountry(req: NextRequest, headers: Headers){
+  headers.set("x-bg-ip-country", req.geo?.country || '');
+}
+
+function getForwardedGeoCountry(req: NextRequest){
+  return req.headers.get("x-bg-ip-country");
+}
+
 
 // Selects the deployment domain based on the blue-green configuration.
 function selectBlueGreenDeploymentDomain(blueGreenConfig: BlueGreenConfig) {
@@ -117,5 +131,20 @@ function getDeploymentWithCookieBasedOnEnvVar() {
     httpOnly: true,
     maxAge: 60 * 60 * 24, // 24 hours
   });
+  return response;
+}
+
+function runDownstreamApplicationMiddlewareLogic(req: NextRequest, res: NextResponse) {
+  const country = req.geo?.country || '';
+  console.log(`GEO_COUNTRY:${country}`);
+  const response = NextResponse.next();
+  const forwardedCountry = getForwardedGeoCountry(req);
+  if(!forwardedCountry){
+    response.cookies.set("geo_country", country);
+  } else {
+    console.log("country is set from forwarded headers = " + forwardedCountry);
+    response.cookies.set("geo_country", forwardedCountry);
+  }
+    
   return response;
 }
